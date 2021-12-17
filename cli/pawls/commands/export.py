@@ -17,7 +17,70 @@ from pawls.commands.utils import (
 )
 from pawls.preprocessors.model import *
 
-ALL_SUPPORTED_EXPORT_TYPE = ["coco", "token"]
+ALL_SUPPORTED_EXPORT_TYPE = ["coco", "token", "text"]
+
+class TextBuilder:
+
+    def __init__(self, categories: List, save_path: str):
+        self.annotations = None
+        self.categories = categories
+        self.save_path = save_path
+        self.papers = None
+
+    def create_paper_data(self, annotation_folder: AnnotationFolder):
+        papers = {}
+        for pdf in annotation_folder.all_pdfs:
+            pdf_sha = get_pdf_sha(pdf)
+            data = []
+            all_page_tokens = annotation_folder.get_pdf_tokens(pdf)
+            for page_tokens in all_page_tokens:
+                    for token in page_tokens.tokens:
+                        data.append(token.text)
+            papers[pdf_sha] = data
+        self.papers = papers
+
+    def create_annotation_for_annotator(self, anno_files: AnnotationFiles) -> None:
+        annotations = []
+
+        annotator = anno_files.annotator
+
+        pbar = tqdm(anno_files)
+
+        for anno_file in pbar:
+            paper_sha = anno_file["paper_sha"]
+            paper = self.papers[paper_sha]
+
+            pawls_annotations = load_json(anno_file["annotation_path"])["annotations"]
+            for anno in pawls_annotations:
+
+                # Skip if current category is not in the specified categories
+                label = anno["label"]["text"]
+                if label not in self.categories:
+                    continue
+
+                # Try to find the tokens if they are in free-form annotation mode
+                if anno["tokens"] is None:
+                    anno_token_indices = find_tokens_in_anno_block(
+                        anno, page_token_data
+                    )
+
+                    if len(anno_token_indices) == 0:
+                        continue
+
+                else:
+                    text = []
+                    for t in anno['tokens']:
+                            text.append(paper[t['tokenIndex']])
+
+
+                    annotations.append([paper_sha, " ".join(text), label, annotator])
+
+                    self.annotations = annotations
+
+    def export(self):
+        df  = pd.DataFrame(self.annotations, columns=["paper", "text", "label", "annotator"])
+        df.to_csv(self.save_path, index=False)
+        return  df
 
 
 def _convert_bounds_to_coco_bbox(bounds: Dict[str, Union[int, float]]):
@@ -437,3 +500,15 @@ def export(
         print(
             f"Successfully exported annotations for {len(df)} tokens from annotators {all_annotators} to {output}."
         )
+    elif format == "text":
+        if not output.endswith(".csv"):
+            output = f"{output}.csv"
+        text_builder = TextBuilder(categories, output)
+        text_builder.create_paper_data(annotation_folder)
+
+        for annotator in all_annotators:
+            # print(f"Export annotations from annotators {annotator}")
+            anno_files = AnnotationFiles(path, annotator, include_unfinished, pdf_shas)
+            text_builder.create_annotation_for_annotator(anno_files)
+            df = text_builder.export()
+            print(f"Successfully exported annotations for {len(df)} tokens from annotators {all_annotators} to {output}.")
