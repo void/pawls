@@ -4,9 +4,10 @@ import os
 import json
 import glob
 
-from fastapi import FastAPI, HTTPException, Header, Response, Body
+from fastapi import FastAPI, HTTPException, Header, Response, Body, Depends, status
 from fastapi.responses import FileResponse
 from fastapi.encoders import jsonable_encoder
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from app.metadata import PaperStatus, Allocation
 from app.annotations import Annotation, RelationGroup, PdfAnnotation
@@ -42,26 +43,21 @@ configuration = pre_serve.load_configuration(CONFIGURATION_FILE)
 
 app = FastAPI()
 
+security = HTTPBasic()
 
-def get_user_from_header(user_email: Optional[str]) -> Optional[str]:
-    """
-    Call this function with the X-Auth-Request-Email header value. This must
-    include an "@" in its value.
 
-    * In production, this is provided by Skiff after the user authenticates.
-    * In development, it is provided in the NGINX proxy configuration file local.conf.
 
-    If the value isn't well formed, or the user isn't allowed, an exception is
-    thrown.
-    """
-    if "@" not in user_email:
-        raise HTTPException(403, "Forbidden")
 
-    if not user_is_allowed(user_email):
-        raise HTTPException(403, "Forbidden")
+def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+    username=credentials.username
 
-    return user_email
-
+    if not user_is_allowed(username):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return  username
 
 def user_is_allowed(user_email: str) -> bool:
     """
@@ -147,9 +143,7 @@ async def get_pdf_title(sha: str) -> Optional[str]:
 
 @app.post("/api/doc/{sha}/comments")
 def set_pdf_comments(
-    sha: str, comments: str = Body(...), x_auth_request_email: str = Header(None)
-):
-    user = get_user_from_header(x_auth_request_email)
+    sha: str, comments: str = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
 
@@ -163,9 +157,7 @@ def set_pdf_comments(
 
 @app.post("/api/doc/{sha}/junk")
 def set_pdf_junk(
-    sha: str, junk: bool = Body(...), x_auth_request_email: str = Header(None)
-):
-    user = get_user_from_header(x_auth_request_email)
+    sha: str, junk: bool = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
     if not exists:
@@ -178,9 +170,7 @@ def set_pdf_junk(
 
 @app.post("/api/doc/{sha}/finished")
 def set_pdf_finished(
-    sha: str, finished: bool = Body(...), x_auth_request_email: str = Header(None)
-):
-    user = get_user_from_header(x_auth_request_email)
+    sha: str, finished: bool = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
     if not exists:
@@ -193,9 +183,7 @@ def set_pdf_finished(
 
 @app.get("/api/doc/{sha}/annotations")
 def get_annotations(
-    sha: str, x_auth_request_email: str = Header(None)
-) -> PdfAnnotation:
-    user = get_user_from_header(x_auth_request_email)
+    sha: str, user: str = Depends(get_current_username)) -> PdfAnnotation:
     annotations = os.path.join(
         configuration.output_directory, sha, f"{user}_annotations.json"
     )
@@ -216,7 +204,7 @@ def save_annotations(
     sha: str,
     annotations: List[Annotation],
     relations: List[RelationGroup],
-    x_auth_request_email: str = Header(None),
+user: str = Depends(get_current_username)
 ):
     """
     sha: str
@@ -231,7 +219,6 @@ def save_annotations(
         is controlled by the Skiff Kubernetes cluster.
     """
     # Update the annotations in the annotation json file.
-    user = get_user_from_header(x_auth_request_email)
     annotations_path = os.path.join(
         configuration.output_directory, sha, f"{user}_annotations.json"
     )
@@ -287,13 +274,12 @@ def get_relations() -> List[Dict[str, str]]:
 
 
 @app.get("/api/annotation/allocation/info")
-def get_allocation_info(x_auth_request_email: str = Header(None)) -> Allocation:
+def get_allocation_info(user: str = Depends(get_current_username)) -> Allocation:
 
     # In development, the app isn't passed the x_auth_request_email header,
     # meaning this would always fail. Instead, to smooth local development,
     # we always return all pdfs, essentially short-circuiting the allocation
     # mechanism.
-    user = get_user_from_header(x_auth_request_email)
 
     status_dir = os.path.join(configuration.output_directory, "status")
     status_path = os.path.join(status_dir, f"{user}.json")
