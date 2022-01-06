@@ -1,4 +1,4 @@
-from typing import NamedTuple, List, Dict
+from typing import NamedTuple, List, Dict, Optional
 import json
 
 
@@ -20,7 +20,9 @@ class Configuration(NamedTuple):
     output_directory: str
     labels: List[Dict[str, str]]
     relations: List[Dict[str, str]]
+    
     users_file: str
+    users_labels: Optional[Dict[str, List[Dict[str, str]]]] = None
 
 
 def load_configuration(filepath: str) -> Configuration:
