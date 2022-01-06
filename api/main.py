@@ -258,11 +258,15 @@ def get_tokens(sha: str):
 
 
 @app.get("/api/annotation/labels")
-def get_labels() -> List[Dict[str, str]]:
+def get_labels(user: str = Depends(get_current_username)) -> List[Dict[str, str]]:
     """
     Get the labels used for annotation for this app.
     """
-    return configuration.labels
+    if configuration.users_labels and user in configuration.users_labels:
+        return configuration.users_labels[user]
+    
+    return  configuration.labels
+
 
 
 @app.get("/api/annotation/relations")
