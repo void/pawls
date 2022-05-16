@@ -1,7 +1,9 @@
 version: '3'
 services:
     sonar:
-        build: ./sonar
+        build:
+          context: ./sonar
+          network: host
         depends_on:
             - api
             - ui
@@ -9,6 +11,7 @@ services:
     api:
         build:
           context: ./api
+          network: host
         volumes:
             - ./api:/usr/local/src/skiff/app/api
             - ./skiff_files/apps/pawls:/skiff_files/apps/pawls
@@ -22,9 +25,11 @@ services:
     ui:
         build:
           context: ./ui
+          network: host
           dockerfile: Dockerfile-local
         # We can't mount the entire UI directory, since JavaScript dependencies
         # (`node_modules`) live at that location.
+        
         volumes:
             - ./ui/src:/usr/local/src/skiff/app/ui/src
             - ./ui/public:/usr/local/src/skiff/app/ui/public
@@ -32,7 +37,9 @@ services:
             - ./ui/tsconfig.json:/usr/local/src/skiff/app/ui/tsconfig.json
             - ./ui/yarn.lock:/usr/local/src/skiff/app/ui/yarn.lock
     proxy:
-        build: ./proxy
+        build: 
+          context: ./proxy
+          network: host
         ports:
             - 8080:80
         depends_on:
