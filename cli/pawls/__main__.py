@@ -17,11 +17,13 @@ def pawls_cli(verbose):
 subcommands = [
     commands.preprocess,
     commands.assign,
+    commands.assign_to_users,
     commands.export,
     commands.status,
     commands.preannotate,
     commands.metric,
-    commands.add
+    commands.add,
+    commands.add_from_s3
 ]
 
 for subcommand in subcommands:
