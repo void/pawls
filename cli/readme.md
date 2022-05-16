@@ -26,6 +26,13 @@ Otherwise, you can add PDFs using the command:
 pawls add <pdf-or-directory>
 ```
 
+2. Place or download PDFs from AWS S3 into `skiff_files/apps/pawls/papers` as described below. If you work at AI2, see the internal usage script for doing this [here](../../scripts/ai2-internal). 
+
+Otherwise, you can add PDFs using the command:
+```bash
+pawls add-from-s3 <bucket-name> <pdf-or-directory>
+```
+
 By default, pawls will create a unique id per PDF by hashing the PDF, and use that hash to refer to the PDF in the UI.
 You can instead retain the original PDF name by passing the `--no-hash` flag to `pawls add`.
 
@@ -113,6 +120,16 @@ You can instead retain the original PDF name by passing the `--no-hash` flag to 
         ```bash
         pawls export <labeling_folder> <labeling_config> <output_path> <format> -u markn --include-unfinished
         ```
+
+8. [assign-to-users] Assign annotation tasks (<PDF_SHA>s) to specific users <user>:
+    ```bash
+    pawls assign-to-users ./skiff_files/apps/pawls/papers <users_file> <PDF_FILENAME>
+    ```
+    Users should be a plain file with all the emails separated by \n (newline) to assign the PDFs.
+    Also if you want to assign all PDFs you can just run
+    ```bash
+    pawls assign-to-users ./skiff_files/apps/pawls/papers <users_file> --all
+    ```
 
 ## Dataset structure
 
