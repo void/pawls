@@ -188,50 +188,54 @@ class COCOBuilder:
         _images = []
         pbar = tqdm(annotation_folder.all_pdf_paths)
         for pdf_path in pbar:
-            paper_sha = get_pdf_sha(pdf_path)
-            pbar.set_description(f"Working on {paper_sha[:10]}...")
+            try:
+                paper_sha = get_pdf_sha(pdf_path)
+                pbar.set_description(f"Working on {paper_sha[:10]}...")
 
-            num_pages, page_sizes = get_pdf_pages_and_sizes(pdf_path)
-            pdf_page_images = convert_from_path(pdf_path)
+                num_pages, page_sizes = get_pdf_pages_and_sizes(pdf_path)
+                pdf_page_images = convert_from_path(pdf_path)
 
-            # Add paper information
-            paper_id = len(_papers)  # Start from zero
-            paper_info = self.PaperTemplate(
-                paper_id,
-                paper_sha,
-                pages=num_pages,
-            )
-
-            current_images = []
-            previous_image_id = len(_images)  # Start from zero
-
-            for page_id, page_size in enumerate(page_sizes):
-                image_filename = self._create_pdf_page_image_filename(
-                    paper_sha, page_id
+                # Add paper information
+                paper_id = len(_papers)  # Start from zero
+                paper_info = self.PaperTemplate(
+                    paper_id,
+                    paper_sha,
+                    pages=num_pages,
                 )
-                width, height = page_size
-                current_images.append(
-                    self.ImageTemplate(
-                        id=previous_image_id + len(current_images),
-                        file_name=image_filename,
-                        height=height,
-                        width=width,
-                        paper_id=paper_id,
-                        page_number=page_id,
-                    )._asdict()
-                )
-                if save_images and not os.path.exists(
-                    f"{self.save_path_image}/{image_filename}"
-                ):
-                    pdf_page_images[page_id].resize((width, height)).save(
-                        f"{self.save_path_image}/{image_filename}"
+
+                current_images = []
+                previous_image_id = len(_images)  # Start from zero
+
+                for page_id, page_size in enumerate(page_sizes):
+                    image_filename = self._create_pdf_page_image_filename(
+                        paper_sha, page_id
                     )
+                    width, height = page_size
+                    current_images.append(
+                        self.ImageTemplate(
+                            id=previous_image_id + len(current_images),
+                            file_name=image_filename,
+                            height=height,
+                            width=width,
+                            paper_id=paper_id,
+                            page_number=page_id,
+                        )._asdict()
+                    )
+                    if save_images and not os.path.exists(
+                        f"{self.save_path_image}/{image_filename}"
+                    ):
+                        pdf_page_images[page_id].resize((width, height)).save(
+                            f"{self.save_path_image}/{image_filename}"
+                        )
 
-            _papers.append(paper_info._asdict())
-            _images.extend(current_images)
+                _papers.append(paper_info._asdict())
+                _images.extend(current_images)
+            except Exception as e:
+                print(e)
+                continue
 
-        self._papers = _papers
-        self._images = _images
+            self._papers = _papers
+            self._images = _images
 
     def create_annotation_for_annotator(self, anno_files: AnnotationFiles) -> None:
         """Create the annotations for the given annotation files"""
