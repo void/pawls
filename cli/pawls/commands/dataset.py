@@ -96,7 +96,7 @@ def add_from_s3(bucket_name: str, directory: str, no_hash: bool) -> None:
     if directory.startswith("/"):
         directory = directory[1:]
 
-    files = list(bucket.objects.filter(Prefix=directory))
+    files = [f for f in bucket.objects.filter(Prefix=directory) if f.key.endswith('.pdf')]
 
     # Check directory or path
     if not files:
