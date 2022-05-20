@@ -176,7 +176,6 @@ def assign_to_users(
     os.makedirs(status_dir, exist_ok=True)
 
     with open(users) as f:
-        annotators = []
         for email in tqdm(f.readlines()):
             annotator = email.strip().replace("\n", "")
             result = re.match(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)", annotator)
@@ -184,8 +183,6 @@ def assign_to_users(
             if not result or result.group(0) != annotator:
                 logging.warning(f"Invalid annotator email {annotator}")
                 continue
-
-            annotators.append(annotator)
 
             status_path = os.path.join(status_dir, f"{annotator}.json")
 
