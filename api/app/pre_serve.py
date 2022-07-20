@@ -22,6 +22,7 @@ class Configuration(NamedTuple):
     relations: List[Dict[str, str]]
     
     users_file: str
+    password_file:str
     users_labels: Optional[Dict[str, List[Dict[str, str]]]] = None
 
 
