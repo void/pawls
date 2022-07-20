@@ -6,6 +6,8 @@ python-json-logger==0.1.10
 fastapi
 uvicorn
 
+passlib
+
 # used for testing/formatting
 pytest
 pytest-env

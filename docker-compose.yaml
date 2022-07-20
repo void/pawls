@@ -13,6 +13,7 @@ services:
             - ./api:/usr/local/src/skiff/app/api
             - ./skiff_files/apps/pawls:/skiff_files/apps/pawls
             - ./api/config/allowed_users_local_development.txt:/users/allowed.txt
+            - ./api/config/passwd:/users/passwd
         environment:
             # This ensures that errors are printed as they occur, which
             # makes debugging easier.

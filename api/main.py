@@ -1,18 +1,20 @@
-from typing import List, Optional, Dict, Any
+import glob
+import json
 import logging
 import os
-import json
-import glob
+from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Header, Response, Body, Depends, status
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Response, Body, Depends, status
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from passlib.apache import HtpasswdFile
 
-from app.metadata import PaperStatus, Allocation
-from app.annotations import Annotation, RelationGroup, PdfAnnotation
-from app.utils import StackdriverJsonFormatter
+
 from app import pre_serve
+from app.annotations import Annotation, RelationGroup, PdfAnnotation
+from app.metadata import PaperStatus, Allocation
+from app.utils import StackdriverJsonFormatter
 
 IN_PRODUCTION = os.getenv("IN_PRODUCTION", "dev")
 
@@ -46,37 +48,23 @@ app = FastAPI()
 security = HTTPBasic()
 
 
-
-
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
-    username=credentials.username
+    username = credentials.username
 
-    if not user_is_allowed(username):
+    if not check_password(username, credentials.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return  username
+    return username
 
-def user_is_allowed(user_email: str) -> bool:
-    """
-    Return True if the user_email is in the users file, False otherwise.
-    """
-    try:
-        with open(configuration.users_file) as file:
-            for line in file:
-                entry = line.strip()
-                if user_email == entry:
-                    return True
-                # entries like "@allenai.org" mean anyone in that domain @allenai.org is granted access
-                if entry.startswith("@") and user_email.endswith(entry):
-                    return True
-    except FileNotFoundError:
-        logger.warning("file not found: %s", configuration.users_file)
-        pass
 
-    return False
+def check_password(username: str, password: str) -> bool:
+    logging.info(configuration.password_file)
+    ht = HtpasswdFile(configuration.password_file)
+    logging.info(ht)
+    return ht.check_password(username, password)
 
 
 def all_pdf_shas() -> List[str]:
@@ -85,7 +73,6 @@ def all_pdf_shas() -> List[str]:
 
 
 def update_status_json(status_path: str, sha: str, data: Dict[str, Any]):
-
     with open(status_path, "r+") as st:
         status_json = json.load(st)
         status_json[sha] = {**status_json[sha], **data}
@@ -143,7 +130,7 @@ async def get_pdf_title(sha: str) -> Optional[str]:
 
 @app.post("/api/doc/{sha}/comments")
 def set_pdf_comments(
-    sha: str, comments: str = Body(...), user: str = Depends(get_current_username)):
+        sha: str, comments: str = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
 
@@ -157,7 +144,7 @@ def set_pdf_comments(
 
 @app.post("/api/doc/{sha}/junk")
 def set_pdf_junk(
-    sha: str, junk: bool = Body(...), user: str = Depends(get_current_username)):
+        sha: str, junk: bool = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
     if not exists:
@@ -170,7 +157,7 @@ def set_pdf_junk(
 
 @app.post("/api/doc/{sha}/finished")
 def set_pdf_finished(
-    sha: str, finished: bool = Body(...), user: str = Depends(get_current_username)):
+        sha: str, finished: bool = Body(...), user: str = Depends(get_current_username)):
     status_path = os.path.join(configuration.output_directory, "status", f"{user}.json")
     exists = os.path.exists(status_path)
     if not exists:
@@ -183,7 +170,7 @@ def set_pdf_finished(
 
 @app.get("/api/doc/{sha}/annotations")
 def get_annotations(
-    sha: str, user: str = Depends(get_current_username)) -> PdfAnnotation:
+        sha: str, user: str = Depends(get_current_username)) -> PdfAnnotation:
     annotations = os.path.join(
         configuration.output_directory, sha, f"{user}_annotations.json"
     )
@@ -201,10 +188,10 @@ def get_annotations(
 
 @app.post("/api/doc/{sha}/annotations")
 def save_annotations(
-    sha: str,
-    annotations: List[Annotation],
-    relations: List[RelationGroup],
-user: str = Depends(get_current_username)
+        sha: str,
+        annotations: List[Annotation],
+        relations: List[RelationGroup],
+        user: str = Depends(get_current_username)
 ):
     """
     sha: str
@@ -264,9 +251,8 @@ def get_labels(user: str = Depends(get_current_username)) -> List[Dict[str, str]
     """
     if configuration.users_labels and user in configuration.users_labels:
         return configuration.users_labels[user]
-    
-    return  configuration.labels
 
+    return configuration.labels
 
 
 @app.get("/api/annotation/relations")
@@ -279,7 +265,6 @@ def get_relations() -> List[Dict[str, str]]:
 
 @app.get("/api/annotation/allocation/info")
 def get_allocation_info(user: str = Depends(get_current_username)) -> Allocation:
-
     # In development, the app isn't passed the x_auth_request_email header,
     # meaning this would always fail. Instead, to smooth local development,
     # we always return all pdfs, essentially short-circuiting the allocation
