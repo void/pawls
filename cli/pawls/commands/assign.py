@@ -1,11 +1,13 @@
+import glob
+import json
+import logging
 import os
+import re
 from typing import Tuple
 
 import click
 from click import UsageError, BadArgumentUsage
-import json
-import glob
-import re
+from tqdm import tqdm
 
 
 @click.command(context_settings={"help_option_names": ["--help", "-h"]})
@@ -130,3 +132,78 @@ def assign(
 
     with open(status_path, "w+") as out:
         json.dump(pdf_status, out)
+
+
+@click.command(context_settings={"help_option_names": ["--help", "-h"]})
+@click.argument("path", type=click.Path(exists=True, file_okay=False))
+@click.argument("users", type=click.Path(exists=True, file_okay=True))
+@click.argument("files", type=str, nargs=-1)
+@click.option(
+    "--all",
+    "-a",
+    is_flag=True,
+    type=bool,
+    default=False,
+    help="A flag to assign all current pdfs in a pawls project to an annotator.",
+)
+def assign_to_users(
+        path: click.Path,
+        users: click.Path,
+        files: Tuple[str],
+        all: bool = False,
+):
+    files = set(files)
+
+    pdfs = glob.glob(os.path.join(path, "*/*.pdf"))
+    project_files = {p.split("/")[-2] for p in pdfs}
+
+    diff = files.difference(project_files)
+    if diff:
+        error = f"Found files which are not present in path {path} .\n"
+        error = (
+                error
+                + f"Add pdf files in the specified directory, one per sub-directory."
+        )
+        for sha in diff:
+            error = error + f"{sha}\n"
+        raise UsageError(error)
+
+    if all:
+        # If --all flag, we use all pdfs in the current project.
+        files.update(project_files)
+
+    status_dir = os.path.join(path, "status")
+    os.makedirs(status_dir, exist_ok=True)
+
+    with open(users) as f:
+        for email in tqdm(f.readlines()):
+            annotator = email.strip().replace("\n", "")
+            result = re.match(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)", annotator)
+
+            if not result or result.group(0) != annotator:
+                logging.warning(f"Invalid annotator email {annotator}")
+                continue
+
+            status_path = os.path.join(status_dir, f"{annotator}.json")
+
+            pdf_status = {}
+            if os.path.exists(status_path):
+                pdf_status = json.load(open(status_path))
+
+            for pdf_file in sorted(files):
+                if pdf_file in pdf_status:
+                    continue
+                else:
+                    pdf_status[pdf_file] = {
+                        "sha": pdf_file,
+                        "name": pdf_file,
+                        "annotations": 0,
+                        "relations": 0,
+                        "finished": False,
+                        "junk": False,
+                        "comments": "",
+                        "completedAt": None,
+                    }
+
+            with open(status_path, "w+") as out:
+                json.dump(pdf_status, out)
